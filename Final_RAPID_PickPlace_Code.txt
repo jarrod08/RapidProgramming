@@ -1,0 +1,74 @@
+MODULE MainModule
+PERS tooldata gripper:=[TRUE,[[0,0,140],[1,0,0,0]],[1,[0,0,90],[1,0,0,0],0,0,0]];
+PERS wobjdata plate1:=[FALSE,TRUE,"",[[90.1613,-477.987,220.375],[0.438029,-5.32377E-05,-6.39664E-05,0.898961]],[[0,0,0],[1,0,0,0]]];
+PERS wobjdata plate2:=[FALSE,TRUE,"",[[146.707,-231.743,218.744],[0.00720878,-0.00330561,-0.00376383,0.999961]],[[0,0,0],[1,0,0,0]]];
+CONST robtarget B1:=[[25.74,86.83,-181.60],[0.00473717,-0.499841,0.86597,0.0152655],[-1,0,-4,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+CONST robtarget A1:=[[17.97,87.36,-181.60],[0.00648801,-0.48883,0.872335,0.00587348],[-1,-1,-4,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+CONST robtarget sp1:=[[-71.71,-69.58,-33.65],[0.0206497,-0.152606,-0.988067,-0.0027601],[-1,0,-2,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+CONST NUM EEdelay:= 0.5;                                                                                    !Half-second delay constant for WaitTime
+CONST NUM xoffset{1,4}:= [[0,30,60,90]];                                                                    !Matrix with the necessary x-direction offsets between points in work object frames
+CONST NUM yoffset{1,2}:= [[-30,-60]];                                                                       !Matrix with the necessary y-direction offsets between points in work object frames
+PERS NUM I:= 1;                                                                                             !Current index of xoffset matrix
+CONST NUM J:= 1;                                                                                            !Current index of yoffset matrix
+PERS NUM count:= 0;
+         
+    PROC PickAndPlace(robtarget pickup, robtarget place, pers wobjdata start, pers wobjdata end)            !Label Function and include function variables
+        Reset RO_0;                                                                                         !Ensure the gripper is in an open position 
+        MoveJ sp1,v100,z50,gripper\WObj:=plate1;                                                            !Move the robot to the safe position away from both work object frames (sp1)
+        MoveL Offs(pickup,0,0,20),v100,FINE,gripper\WObj:=start;                                            !Move robot to a safe position that is offset 20 mm above the pickup position
+        MoveL pickup,v100,FINE,gripper\WObj:=start;                                                         !Move robot down to its pickup position
+        Set RO_0;                                                                                           !Close gripper (Pickup)
+        WaitTime(EEdelay);                                                                                  !Force the robot to wait after closing gripper to ensure an accurate pickup
+        MoveL Offs(pickup,0,0,20),v100,FINE,gripper\WObj:=start;                                            !Move robot back to the safe posiiton that is offset 20 mm above the pickup position (+Z direction)
+        MoveL sp1,v100,z50,gripper\WObj:=plate1;                                                            !Move the robot to the safe position away from both work object frames (sp1)
+        MoveL Offs(place,0,0,20),v100,FINE,gripper\WObj:=end;                                               !Move robot to a safe position that is offset 20 mm above the place position
+        MoveL place,v100,FINE,gripper\WObj:=end;                                                            !Move robot down to its place position 
+        Reset RO_0;                                                                                         !Open the gripper, allowing for object to be placed
+        WaitTime(EEdelay);                                                                                  !Force robot to wait after placing object to ensure placement was completed
+        MoveL Offs(place,0,0,20),v100,FINE,gripper\WObj:=end;                                               !Move robot back to the safe posiiton that is offset 20 mm above the place position (+Z direction)
+        MoveL sp1,v100,FINE,gripper\WObj:=plate1;                                                           !Move the robot to the safe position away from both work object frames (sp1)
+    ENDPROC                                                                                                 !End PickAndPlace Procedure
+    
+    PROC Main()                                                                                                                     !Begin Main Procedure
+        I := 1;                                                                                                                     !Set initial indexing position of xoffset matrix to 1
+        count:= 0;                                                                                                                  !Initialize count variable to 0, this will keep track of procedure iterations
+        FOR x FROM 0 TO 2 STEP 1 DO                                                                                                 !Set ForLoop bounds to iterate from index 0 to 2
+                PickAndPlace Offs(A1, xoffset{1,I}, 0, 0), Offs(B1, xoffset{1,I}, 0, 0), plateA, plateB;                            !Callout Function and pass in the necessary variables/offsetts
+                        I:= I+1;                                                                                                    !Iterate to next position within the xoffset matrix by 1 (moves objects from plate1;row 1 to plate2;row 1)
+                        count:= count+1;                                                                                            !Increment count variable (procedure iterations) by 1
+        ENDFOR                                                                                                                      !End ForLoop
+        IF count = 3 THEN                                                                                                           !If statement to check if count (procedure iterations) is equal to 3
+        I := 1;                                                                                                                     !Re-initialize xoffset matrix index to 1
+        FOR x FROM 0 TO 2 STEP 1 DO                                                                                                 !Set ForLoop bounds to iterate from index 0 to 2
+                PickAndPlace Offs(B1, xoffset{1,I}, 0, 0), Offs(A1, xoffset{1,I}, yoffset{1,J}, 0), plateB, plateA;                 !Callout Function and pass in the necessary variables/offsetts
+                        I:= I+1;                                                                                                    !Iterate to next position within the xoffset matrix by 1 (moves objects from plate2;row 1 to plate1;row 2) 
+                        count:= count+1;                                                                                            !Increment count variable (procedure iterations) by 1
+        ENDFOR                                                                                                                      !End ForLoop
+        ENDIF                                                                                                                       !End If Statement
+        IF count = 6 THEN                                                                                                           !If statement to check if count (procedure iterations) is equal to 6
+        I := 1;                                                                                                                     !Re-initialize xoffset matrix index to 1
+        FOR x FROM 0 TO 2 STEP 1 DO                                                                                                 !Set ForLoop bounds to iterate from index 0 to 2
+                PickAndPlace Offs(A1, xoffset{1,I}, yoffset{1,J}, 0), Offs(B1, xoffset{1,I}, yoffset{1,J}, 0), plateA, plateB;      !Callout Function and pass in the necessary variables/offsetts
+                        I:= I+1;                                                                                                    !Iterate to next position within the xoffset matrix by 1 (moves objects from plate1;row 2 to plate2;row 2)
+                        count:= count+1;                                                                                            !Increment count variable (procedure iterations) by 1
+        ENDFOR                                                                                                                      !End ForLoop
+        ENDIF                                                                                                                       !End If Statement
+        IF count = 9 THEN                                                                                                           !If statement to check if count (procedure iterations) is equal to 9
+        I := 1;                                                                                                                     !Re-initialize xoffset matrix index to 1
+        FOR x FROM 0 TO 2 STEP 1 DO                                                                                                 !Set ForLoop bounds to iterate from index 0 to 2
+                PickAndPlace Offs(B1, xoffset{1,I}, yoffset{1,J}, 0), Offs(A1, xoffset{1,I}, yoffset{1,J+1}, 0), plateB, plateA;    !Callout Function and pass in the necessary variables/offsetts
+                        I:= I+1;                                                                                                    !Iterate to next position within the xoffset matrix by 1 (moves objects from plate2;row 2 to plate1; row 3)
+                        count:= count+1;                                                                                            !Increment count variable (procedure iterations) by 1
+        ENDFOR                                                                                                                      !End ForLoop
+        ENDIF                                                                                                                       !End If Statement
+      IF count = 12 THEN                                                                                                            !If statment to check if count (procedure iterations) is equal to 12
+        I := 1;                                                                                                                     !Re-initialize xoffset matrix index to 1
+        FOR x FROM 0 TO 2 STEP 1 DO                                                                                                 !Set ForLoop bounds to iterate from index 0 to 2
+                PickAndPlace Offs(A1, xoffset{1,I}, yoffset{1,J+1}, 0), Offs(B1, xoffset{1,I}, yoffset{1,J+1}, 0), plateA, plateB;  !Callout Function and pass in the necessary variables/offsetts
+                        I:= I+1;                                                                                                    !Iterate to next position within the xoffset matrix by 1 (moves objects from plate1;row 3 to plate2;row 3)
+                        count:= count+1;                                                                                            !Increment count variable (procedure iterations) by 1
+        ENDFOR                                                                                                                      !End ForLoop
+        ENDIF                                                                                                                       !End If statement
+        break;                                                                                                                      !Break statement to stop program execution after returning to safe position (sp1)
+    ENDPROC                                                                                                                         !End Main Procedure
+ENDMODULE
